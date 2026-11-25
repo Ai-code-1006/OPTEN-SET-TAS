@@ -1,0 +1,11 @@
+__pycache__/
+.reasonix/
+ASFormer-main/
+ASQuery-main/
+data/
+outputs/
+reference_paper/
+tmp/
+BaFormer-main/experiments/
+BaFormer-main/logs/
+BaFormer-main/open_set_data/
