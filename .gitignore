@@ -6,6 +6,10 @@ data/
 outputs/
 reference_paper/
 tmp/
-BaFormer-main/experiments/
-BaFormer-main/logs/
-BaFormer-main/open_set_data/
+experiments/
+logs/
+
+scripts/
+results/
+AGENTS.md
+论文方法
