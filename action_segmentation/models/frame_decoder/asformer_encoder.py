@@ -40,7 +40,7 @@ class ASFormerEncoder(nn.Module):
         else:
             channel_masking_rate = 0.3
 
-        return {"num_layers": cfg.model.action_seg.frame_decoder.num_layers,
+        return {"num_layers": 10,
                 "r1": 2,
                 "r2": 2,
                 "num_f_maps": cfg.model.action_seg.frame_decoder.embed_dim,

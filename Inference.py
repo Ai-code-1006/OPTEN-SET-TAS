@@ -26,6 +26,7 @@ from action_segmentation import(
     create_optimizer,
     create_scheduler,
     get_default_config,
+    update_config,
     SetCriterion_bd,
 )
 from action_segmentation.config.config_node import ConfigNode
@@ -69,14 +70,15 @@ def load_config():
         config.merge_from_file(args.config, allow_unsafe=True)
     config.merge_from_list(args.options)
 
-    out_dir = os.path.join(config.train.output_dir, config.dataset.name, config.model.name, config.model.note,
+    if not torch.cuda.is_available():
+        config.device = 'cpu'
+        config.train.dataloader.pin_memory = False
+    out_dir = os.path.join(config.train.output_dir, config.dataset.name, config.model.note,
                            str(config.dataset.split))
 
     config_path = pathlib.Path(out_dir) / 'config.yaml'
     config.merge_from_file(config_path.as_posix())
-    if not torch.cuda.is_available():
-        config.device = 'cpu'
-        config.train.dataloader.pin_memory = False
+    config = update_config(config)
     config.freeze()
     return config
 
@@ -232,7 +234,7 @@ def inference_bd_peak(prediction, threshold):
         mask_bd = mask_bd.sigmoid().float().squeeze(dim=0)
         mask_bd[mask_bd < threshold] = 0.0
         peak = torch.where((mask_bd[ :-2] < mask_bd[1:-1])
-                        & (mask_bd[ 2:] < mask_bd[1:-1] ))[0] + 1
+                        & (mask_bd[ 2:] < mask_bd[1:-1] ))[0]
         indices = [0] + peak.tolist() + [mask_bd.shape[-1]]
         mask_ref = torch.zeros_like(mask_pred)
         for i in range(len(indices)-1):
@@ -241,6 +243,7 @@ def inference_bd_peak(prediction, threshold):
             mask_ref[mask_split,star:end] = 1
         mask_cls = F.softmax(mask_cls, dim=-1)[..., :-1]
         r = torch.einsum('qc,ql->cl', mask_cls, mask_ref).transpose(0, 1)
+        r = _relabeling(r, 100)  #
         processed_results.append(r)
     seg_pred = torch.stack(processed_results, dim=0)
     return seg_pred
@@ -445,8 +448,7 @@ def main():
 
     epoch_seeds = np.random.randint(np.iinfo(np.int32).max // 2,
                                     size=config.scheduler.epochs)
-    out_dir = os.path.join(config.train.output_dir, config.dataset.name, config.model.name,
-                           config.model.note, str(config.dataset.split))
+    out_dir = os.path.join(config.train.output_dir, config.dataset.name, config.model.note, str(config.dataset.split))
     output_dir = pathlib.Path(out_dir)
 
     logger = create_logger(name=__name__,

@@ -23,7 +23,6 @@ config.dataset.dataset_dir = '/data/peiyao/data/'
 config.dataset.classes_list = [11, 48, 19]
 config.dataset.data_list = ['gtea', 'breakfast', '50salads']
 config.dataset.n_channels = 2048
-config.dataset.boundary_sigma = None
 
 config.model = ConfigNode()
 config.model.type = 'act_seg'
@@ -87,11 +86,9 @@ config.model.action_seg.frame_decoder = ConfigNode()
 config.model.action_seg.frame_decoder.name = 'ASFormerEncoder'
 config.model.action_seg.frame_decoder.input_dim = 64
 config.model.action_seg.frame_decoder.embed_dim = 64
-config.model.action_seg.frame_decoder.num_layers = 10
 config.model.action_seg.transformer_decoder = ConfigNode()
 config.model.action_seg.transformer_decoder.name = 'MaskedTransformerDecoder'
 config.model.action_seg.transformer_decoder.hidden_dim = 64 * 3
-config.model.action_seg.transformer_decoder.ffn_dim = 64
 config.model.action_seg.transformer_decoder.num_queries = 100
 config.model.action_seg.transformer_decoder.nheads = 3
 config.model.action_seg.transformer_decoder.dim_feedforward = 128
@@ -226,3 +223,5 @@ config.test.dataloader.pin_memory = False
 
 def get_default_config():
     return config.clone()
+
+

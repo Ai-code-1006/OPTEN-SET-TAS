@@ -32,7 +32,6 @@ class TransformerDecoderMask_Boundary_MulKV(nn.Module):
             num_decode,
             num_classes: int,
             hidden_dim: int,
-            ffn_dim: int,
             num_queries: int,
             nheads: int,
             dropout: float,
@@ -62,8 +61,8 @@ class TransformerDecoderMask_Boundary_MulKV(nn.Module):
                 self.input_proj.append(nn.Sequential())
 
         self.trans_decode = nn.ModuleList([])
-        for i in range(self.num_decode):                         #in_dim, head_dim, heads, ffn_dim
-            self.trans_decode.append(Transformer_decoder_layer(in_channels, in_channels, nheads, ffn_dim, dropout))
+        for i in range(self.num_decode):                         #in_dim, head_dim, heads, hidden_dim
+            self.trans_decode.append(Transformer_decoder_layer(in_channels, in_channels, nheads, hidden_dim, dropout))
 
         self.decoder_norm = nn.LayerNorm(hidden_dim)
 
@@ -91,7 +90,6 @@ class TransformerDecoderMask_Boundary_MulKV(nn.Module):
         ret["num_classes"] = cfg.dataset.n_classes
         ret["num_decode"] = cfg.model.action_seg.transformer_decoder.dec_layers
         ret["hidden_dim"] = cfg.model.action_seg.transformer_decoder.hidden_dim
-        ret["ffn_dim"] = cfg.model.action_seg.transformer_decoder.ffn_dim
         ret["num_queries"] = cfg.dataset.num_query # cfg.model.action_seg.transformer_decoder.num_queries
         # Transformer parameters:
         ret["nheads"] = cfg.model.action_seg.transformer_decoder.nheads

@@ -66,16 +66,15 @@ def load_config():
     if args.config is not None:
         config.merge_from_file(args.config, allow_unsafe=True)
     config.merge_from_list(args.options)
-    config = update_config(config)
-    # Apply explicit run options after selecting the dataset defaults.
-    config.merge_from_list(args.options)
+
+    if not torch.cuda.is_available():
+        config.device = 'cpu'
+        config.train.dataloader.pin_memory = False
     if args.resume != '':
         config_path = pathlib.Path(args.resume) / 'config.yaml'
         config.merge_from_file(config_path.as_posix())
         config.merge_from_list(['train.resume', True])
-    if not torch.cuda.is_available():
-        config.device = 'cpu'
-        config.train.dataloader.pin_memory = False
+    config = update_config(config)
     config.freeze()
     return config
 
@@ -172,9 +171,6 @@ def create_heatmap(sequence, sigma=2.0):
     sigma = torch.tensor([sigma]).to(device)
     peak_positions = torch.nonzero(sequence).squeeze(dim=-1)
 
-    if peak_positions.numel() == 0:
-        return torch.zeros_like(sequence, dtype=torch.float32)
-
     # Create a 1D tensor representing the indices
     indices = torch.arange(0, len(sequence)).to(device)
 
@@ -186,7 +182,7 @@ def create_heatmap(sequence, sigma=2.0):
 
     return heatmap
 
-def prepare_target(frame_tgs, sigma, boundary_sigma=None):
+def prepare_target(frame_tgs, sigma):
     b, l = frame_tgs.shape #just 1 sample, b=1
     frame_tg = frame_tgs.squeeze(dim=0)
     gt_mask = []
@@ -228,8 +224,6 @@ def prepare_target(frame_tgs, sigma, boundary_sigma=None):
             gt_class.append(current.unsqueeze(dim=0))
     gt_mask = torch.cat(gt_mask)
     gt_class = torch.cat(gt_class)
-    if boundary_sigma is not None:
-        frame_bd = create_heatmap(frame_bd, boundary_sigma)
     target = {  'labels': gt_class,
                 'masks': gt_mask,
                 'boundarys': frame_bd}
@@ -291,7 +285,7 @@ def inference_bd_peak(prediction, threshold):
         mask_bd = mask_bd.sigmoid().float().squeeze(dim=0)
         mask_bd[mask_bd < threshold] = 0.0
         peak = torch.where((mask_bd[ :-2] < mask_bd[1:-1])
-                        & (mask_bd[ 2:] < mask_bd[1:-1] ))[0] + 1
+                        & (mask_bd[ 2:] < mask_bd[1:-1] ))[0]
         indices = [0] + peak.tolist() + [mask_bd.shape[-1]]
         mask_ref = torch.zeros_like(mask_pred)
         for i in range(len(indices)-1):
@@ -300,6 +294,7 @@ def inference_bd_peak(prediction, threshold):
             mask_ref[mask_split,star:end] = 1
         mask_cls = F.softmax(mask_cls, dim=-1)[..., :-1]
         r = torch.einsum('qc,ql->cl', mask_cls, mask_ref).transpose(0, 1)
+        r = _relabeling(r, 100)
         processed_results.append(r)
     seg_pred = torch.stack(processed_results, dim=0)
     return seg_pred
@@ -352,7 +347,7 @@ def train(epoch, config, model, optimizer, scheduler, train_loader, logger, tens
             data = data + config.dataset.noise_weight * noise.type(torch.float32)
         data = data.to(device, non_blocking=config.train.dataloader.non_blocking)
         frame_target = frame_target.to(device, non_blocking=config.train.dataloader.non_blocking).long() #[1, L] frame-wise
-        targets = prepare_target(frame_target, config.dataset.guassian_sigma, config.dataset.boundary_sigma)
+        targets = prepare_target(frame_target, config.dataset.guassian_sigma)
         # print(targets[0]['labels'])
 
         #------- change target to set_label for multi-calssification
@@ -453,7 +448,7 @@ def validate(epoch, config, model,  val_loader, val_record, logger, tensorboard_
         #----- data process
         data = data.to(device, non_blocking=config.validation.dataloader.non_blocking)
         frame_target = frame_target.to(device, non_blocking=config.validation.dataloader.non_blocking).long()
-        targets = prepare_target(frame_target, config.dataset.guassian_sigma, config.dataset.boundary_sigma)
+        targets = prepare_target(frame_target, config.dataset.guassian_sigma)
 
         outputs = model(data)
 
